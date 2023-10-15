@@ -1,7 +1,25 @@
 package main
 
-import "github.com/srijanmukherjee/codesensei/pkg/server"
+import (
+	"fmt"
+	"log"
+	"net/http"
+
+	"github.com/go-chi/chi"
+	"github.com/srijanmukherjee/codesensei/pkg/config"
+	"github.com/srijanmukherjee/codesensei/pkg/server/controller"
+)
 
 func main() {
-	server.SayHello()
+	router := chi.NewRouter()
+
+	router.Route("/submissions", func(r chi.Router) {
+		r.Post("/", controller.HandleSubmissionsPost)
+		r.Get("/", controller.HandleSubmissionsGetMany)
+		r.Get("/{token}", controller.HandleSubmissionsGetOne)
+	})
+
+	addr := fmt.Sprintf("0.0.0.0:%v", config.Config.ServerPort)
+	log.Printf("🚀 server started on http//%v\n", addr)
+	log.Panic(http.ListenAndServe(addr, router))
 }

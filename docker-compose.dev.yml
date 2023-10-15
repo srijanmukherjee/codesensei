@@ -1,0 +1,21 @@
+services:
+    codesensei:
+        build: .
+        env_file:
+            - ./codesensei.conf
+        ports:
+            - 3000:3000
+
+    db:
+        image: postgres
+        restart: always
+        env_file:
+            - ./codesensei.conf
+        volumes:
+            - postgres-data:/var/lib/postgresql/data/
+        ports:
+            - 5432:5432
+
+volumes:
+    postgres-data:
+        
