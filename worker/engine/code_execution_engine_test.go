@@ -66,7 +66,7 @@ func TestSuccessfulRun(t *testing.T) {
 		Id:                                   rand.Uint32(),
 		SourceFilename:                       "main.c",
 		RunCommand:                           "./main",
-		SourceContent:                        "#include <stdio.h>\n#include <unistd.h>\nint main() { int n; scanf(\"%d\", &n); printf(\"Hello, World! %d\\n\", n); return 0; }",
+		SourceContent:                        "#include <stdio.h>\n#include <unistd.h>\nint main() { int n; int*p=NULL; scanf(\"%d\", &n); printf(\"Hello, World! %d\\n\", *p); return 0; }",
 		CompileCommand:                       "gcc %s -o main main.c",
 		CompilerOptions:                      "-Wall -O2",
 		EnablePerProcessAndThreadMemoryLimit: true,
@@ -86,8 +86,8 @@ func TestSuccessfulRun(t *testing.T) {
 	assert.Equal(t, true, compileResult.Success, "Compile should be successful")
 	assert.Equal(t, 0, compileResult.ExitCode, "Exit code should be 0")
 
-	context.Run("1")
-	// assert.NoError(t, err, "Run should not return an error")
+	_, err = context.Run("1")
+	assert.NoError(t, err, "Run should not return an error")
 	// assert.Equal(t, true, runResult.Success, "Run should be successful")
 	// assert.Equal(t, 0, runResult.ExitCode, "Exit code should be 0")
 	// assert.Equal(t, "Hello, World!\n", runResult.Output, "Output should be 'Hello, World!\n'")

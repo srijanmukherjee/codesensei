@@ -9,14 +9,12 @@ import (
 	"os/exec"
 	"path"
 	"regexp"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/srijanmukherjee/codesensei/shared/config"
 )
-
-// TODO:
-// - [ ] Create custom errors and wrap the errors returned by the standard library functions
 
 const (
 	ISOLATE_CMD             = "/usr/local/bin/isolate"
@@ -71,7 +69,7 @@ type RunResult struct {
 	Stdout     string
 	Stderr     string
 	Time       float64
-	WallTime   int
+	WallTime   float64
 	Memory     int
 	ExitCode   int
 	ExitSignal int
@@ -165,7 +163,7 @@ func (c *CodeExecutionContext) Compile() (CompileResult, error) {
 		"-t", fmt.Sprint(c.Config.MaxCpuTimeLimit),
 		"-w", fmt.Sprint(c.Config.MaxWallTimeLimit),
 		"--stack", fmt.Sprint(c.Config.MaxStackLimit),
-		"-f", fmt.Sprint(c.Config.MaxMaxFileSize), // TODO: MAX_MAX_FILE_SIZE
+		"-f", fmt.Sprint(c.Config.MaxMaxFileSize),
 		fmt.Sprintf("-p%v", c.Config.MaxMaxProcessesAndOrThreads),
 		fmt.Sprintf("-m%v", c.Config.MaxMemoryLimit),
 		"-E", "HOME=/tmp",
@@ -219,7 +217,6 @@ func (c *CodeExecutionContext) Compile() (CompileResult, error) {
 
 // Runs the compiled code in the code execution context with the given input
 func (c *CodeExecutionContext) Run(stdin string) (RunResult, error) {
-
 	if err := os.WriteFile(c.stdinFile, []byte(stdin), 0666); err != nil {
 		return RunResult{}, err
 	}
@@ -291,12 +288,56 @@ func (c *CodeExecutionContext) Run(stdin string) (RunResult, error) {
 
 	err := cmd.Run()
 	if err != nil {
-		log.Printf("Error running isolate: %v", err)
+		if _, ok := err.(*exec.ExitError); !ok {
+			return RunResult{}, err
+		}
 	}
 
-	log.Println(string(stdoutBuffer.Bytes()))
+	exitCode := cmd.ProcessState.ExitCode()
+	metadata := c.getMetadata()
 
-	return RunResult{}, nil
+	log.Println(exitCode)
+	log.Printf("%+v", metadata)
+
+	c.resetMetadata()
+
+	var time float64
+	if time, err = strconv.ParseFloat(metadata["time"], 32); err != nil {
+		return RunResult{}, err
+	}
+
+	var wallTime float64
+	if time, err = strconv.ParseFloat(metadata["time-wall"], 32); err != nil {
+		return RunResult{}, err
+	}
+
+	if runExitCode, ok := metadata["exitcode"]; ok {
+		if exitCode, err = strconv.Atoi(runExitCode); err != nil {
+			exitCode = 0
+		}
+	}
+
+	memoryMetadata := ""
+	if c.cgroupsEnabled {
+		memoryMetadata = metadata["cg-mem"]
+	} else {
+		memoryMetadata = metadata["max-rss"]
+	}
+
+	var memory int
+	if memory, err = strconv.Atoi(memoryMetadata); err != nil {
+		return RunResult{}, err
+	}
+
+	// TODO: add missing fields
+	return RunResult{
+		Stdout:   stdoutBuffer.String(),
+		Stderr:   stderrBuffer.String(),
+		ExitCode: exitCode,
+		Time:     time,
+		WallTime: wallTime,
+		Memory:   memory,
+	}, nil
 }
 
 func (c *CodeExecutionContext) Cleanup() error {
